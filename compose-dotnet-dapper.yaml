@@ -1,0 +1,40 @@
+services:
+  api:
+    image: api-dapper
+    environment:
+     - ASPNETCORE_URLS=http://*:8080
+     - ConnectionStrings__Default=Host=postgres; Database=my-db; Username=postgres; Password=Qweasdzxc123; SSL Mode=Disable;
+    build:
+      context: dotnet-asp-net-dapper
+    ports:
+      - 8080:8080
+    depends_on:
+    - postgres
+    healthcheck:
+      test: curl --fail http://localhost:8080/api/v1/authors || exit 1
+      
+  postgres:
+    image: postgres:16-alpine3.20
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=Qweasdzxc123
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=my-db
+    volumes:
+      - ./go-git-sqlc/migrations/20240728213003_init.up.sql:/docker-entrypoint-initdb.d/init.sql
+
+  k6:
+    image: grafana/k6:latest
+    entrypoint: k6 run /scripts/k6-script.js
+    ports:
+      - "6565:6565"
+    environment:
+      - API_URL=http://api:8080
+      - K6_WEB_DASHBOARD=true
+    volumes:
+      - ./k6-script.js:/scripts/k6-script.js
+    depends_on:
+      api:
+         condition: service_healthy
